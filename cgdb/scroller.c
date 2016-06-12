@@ -294,17 +294,81 @@ void scr_move(struct scroller *scr, int pos_r, int pos_c, int height, int width)
     wclear(scr->win);
 }
 
-// TODO: move me!
+int consume_hex(int* lineIdx, char* buffer, int nChars)
+{
+    char cur = buffer[*lineIdx];
+    if(cur != '0') return 0;
+    
+    ++(*lineIdx);
+    if(*lineIdx < nChars){
+        cur = buffer[*lineIdx];
+        if(cur == 'x' || cur == 'X'){
+            ++(*lineIdx);
+            int numSize = consume_num(lineIdx, buffer, nChars);
+            if(numSize > 0){
+                return numSize+2;
+            } 
+        } 
+    } 
+
+    return 0;
+}
+
+int consume_num(int* lineIdx, char* buffer, int nChars)
+{
+    int numSize = 0;
+    char cur;
+
+    while(*lineIdx < nChars){
+        cur = buffer[*lineIdx];
+        // ascii 0-9
+        if(cur >= 48 && cur <= 57){
+            ++numSize;
+            ++(*lineIdx);
+        } else {
+            // TODO the loop this is called in should be ok with going 1 past
+            --(*lineIdx);
+            break;
+        }
+    }
+
+    
+    return numSize;
+}
+
+// TODO: move me! this should be a callback within scr_refresh or something
 // TODO: should this be line-by-line or buffer at once?
 void highlight_gdb(char* buffer, int nChars, struct scroller *scr, int y)
 {
+    /* init_pair(1, COLOR_RED, COLOR_BLACK); */
     char cur,prev;
     for(int lineIdx = 0; lineIdx < nChars; lineIdx++) {
         cur = buffer[lineIdx];
-        if(cur == '*' || cur == '/' || cur == '+' || cur == '-'){
-            mvwchgat(scr->win, y, lineIdx, 1, NULL, 1, NULL);
-
+        
+        // backtrace
+        // the start of each stack frame line is #n EG: #1
+        if(cur == '#'){
+            int startIdx = lineIdx;
+            ++lineIdx;
+            int numSize = consume_num(&lineIdx, buffer, nChars);
+            if(numSize > 0){
+                // the +1 includes the "#"
+                mvwchgat(scr->win, y, startIdx, numSize+1, NULL, 1, NULL);
+            }
         }
+
+        // hex
+        if(cur == '0'){
+            int startIdx = lineIdx;
+            int numSize = consume_hex(&lineIdx, buffer, nChars);
+            if(numSize > 0){
+                mvwchgat(scr->win, y, startIdx, numSize, NULL, 1, NULL);
+            }
+        }
+
+        /* if(cur == '*' || cur == '/' || cur == '+' || cur == '-'){ */
+        /*     mvwchgat(scr->win, y, lineIdx, 1, NULL, 1, NULL);     */
+        /* }                                                         */
         
     }
     
