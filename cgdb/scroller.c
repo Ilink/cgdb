@@ -322,7 +322,12 @@ int consume_num(int* lineIdx, char* buffer, int nChars)
     while(*lineIdx < nChars){
         cur = buffer[*lineIdx];
         // ascii 0-9
-        if(cur >= 48 && cur <= 57){
+        bool isDec = cur >= 48 && cur <= 57;
+        bool isHexLower = cur >= 65 && cur <= 70;
+        bool isHexUpper = cur >= 97 && cur <= 102;
+        bool isHex = isHexLower || isHexUpper;
+
+        if(isDec || isHex){
             ++numSize;
             ++(*lineIdx);
         } else {
