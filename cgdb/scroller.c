@@ -294,6 +294,21 @@ void scr_move(struct scroller *scr, int pos_r, int pos_c, int height, int width)
     wclear(scr->win);
 }
 
+int consume_path(int* lineIdx, char* buffer, int nChars)
+{
+    /*
+       f/f/
+       /f/f
+
+       look for a slash, then backtrack until we find a space
+
+       look for escaped spaces (or not, who cares)
+       after the path, if it exists, look for ":123"
+    */
+
+    return 0;
+}
+
 int consume_hex(int* lineIdx, char* buffer, int nChars)
 {
     char cur = buffer[*lineIdx];
@@ -343,6 +358,8 @@ int consume_num(int* lineIdx, char* buffer, int nChars)
 
 // TODO: move me! this should be a callback within scr_refresh or something
 // TODO: should this be line-by-line or buffer at once?
+//       some stuff needs previous line to work.
+//       like if we have some command we just ran and want to highlight it
 void highlight_gdb(char* buffer, int nChars, struct scroller *scr, int y)
 {
     /* init_pair(1, COLOR_RED, COLOR_BLACK); */
