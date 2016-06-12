@@ -237,6 +237,9 @@ void scr_add(struct scroller *scr, const char *buf)
     int length;                 /* Length of the current line */
     char *x;                    /* Pointer to next new line character */
 
+    char colorStop[11] = { '\\', '[', '\\', '0', '3', '3', '[', '0', 'm', '\\', ']' };
+    char cyan[14] = { '\\', '[', '\\', '0', '3', '3', '[', '0', ';','3','6','m', '\\', ']' };
+
     /* Find next newline in the string */
     x = strchr(buf, '\n');
     length = strlen(scr->buffer[scr->length - 1]);
@@ -245,9 +248,13 @@ void scr_add(struct scroller *scr, const char *buf)
     /* Append to the last line in the buffer */
     if (distance > 0) {
         char *temp = scr->buffer[scr->length - 1];
+        /* char *buf2 = malloc(14 + distance + 11 + 1); */
         char *buf2 = malloc(distance + 1);
 
+        /* strncpy(buf2, cyan, 14); */
         strncpy(buf2, buf, distance);
+        /* strncpy(buf2+14, buf, distance); */
+        /* strncpy(buf2+distance, colorStop, 11); */
         buf2[distance] = 0;
         scr->buffer[scr->length - 1] = parse(scr, temp, buf2);
         free(temp);
@@ -308,8 +315,17 @@ void scr_refresh(struct scroller *scr, int focus)
     buffer = malloc(width + 1);
     buffer[width] = 0;
 
+    init_pair(1, COLOR_RED, COLOR_BLACK);
+    /* wattron(scr->win, COLOR_PAIR(1));     */
+
     /* Start drawing at the bottom of the viewable space, and work our way up */
     for (nlines = 1; nlines <= height; nlines++) {
+
+        /*
+        eat char:
+            if some kind of special char, color it
+            else try to read the whole word
+        */
 
         /* Print the current line [segment] */
         memset(buffer, ' ', width);
@@ -317,7 +333,25 @@ void scr_refresh(struct scroller *scr, int focus)
             length = strlen(scr->buffer[r] + c);
             memcpy(buffer, scr->buffer[r] + c, length < width ? length : width);
         }
+
         mvwprintw(scr->win, height - nlines, 0, "%s", buffer);
+
+        char cur,prev;
+        for(int lineIdx = 0; lineIdx < width; lineIdx++) {
+            cur = buffer[lineIdx];
+            /* printf("%c", cur); */
+            if(cur == '*' || cur == '/' || cur == '+' || cur == '-'){
+
+            }
+            
+            mvwchgat(scr->win, height - nlines, 0, -1, NULL, 1, NULL);
+            
+            /* mvwprintw(scr->win, height - nlines, 0, "%c%c", '/', cur); */
+            /* wprintw(scr->win, "%c%c", '/', cur); */
+
+        }
+
+        
 
         /* Update our position */
         if (c >= width)
@@ -344,4 +378,5 @@ void scr_refresh(struct scroller *scr, int focus)
 
     free(buffer);
     wrefresh(scr->win);
+    /* wattroff(scr->win, COLOR_PAIR(1)); */
 }
