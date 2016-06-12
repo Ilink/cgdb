@@ -294,6 +294,22 @@ void scr_move(struct scroller *scr, int pos_r, int pos_c, int height, int width)
     wclear(scr->win);
 }
 
+// TODO: move me!
+// TODO: should this be line-by-line or buffer at once?
+void highlight_gdb(char* buffer, int nChars, struct scroller *scr, int y)
+{
+    char cur,prev;
+    for(int lineIdx = 0; lineIdx < nChars; lineIdx++) {
+        cur = buffer[lineIdx];
+        if(cur == '*' || cur == '/' || cur == '+' || cur == '-'){
+            mvwchgat(scr->win, y, lineIdx, 1, NULL, 1, NULL);
+
+        }
+        
+    }
+    
+}
+
 void scr_refresh(struct scroller *scr, int focus)
 {
     int length;                 /* Length of current line */
@@ -336,21 +352,7 @@ void scr_refresh(struct scroller *scr, int focus)
 
         mvwprintw(scr->win, height - nlines, 0, "%s", buffer);
 
-        char cur,prev;
-        for(int lineIdx = 0; lineIdx < width; lineIdx++) {
-            cur = buffer[lineIdx];
-            /* printf("%c", cur); */
-            if(cur == '*' || cur == '/' || cur == '+' || cur == '-'){
-
-            }
-            
-            mvwchgat(scr->win, height - nlines, 0, -1, NULL, 1, NULL);
-            
-            /* mvwprintw(scr->win, height - nlines, 0, "%c%c", '/', cur); */
-            /* wprintw(scr->win, "%c%c", '/', cur); */
-
-        }
-
+        highlight_gdb(buffer, width, scr, height - nlines);
         
 
         /* Update our position */
