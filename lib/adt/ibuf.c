@@ -69,12 +69,16 @@ void ibuf_addchar(struct ibuf *s, char c)
     s->buf[(s->cur_buf_pos)] = '\0';
 }
 
+void ibuf_adds(struct ibuf *s, const char *d, int length)
+{
+    for (int i = 0; i < length; i++)
+        ibuf_addchar(s, d[i]);
+}
+
 void ibuf_add(struct ibuf *s, const char *d)
 {
-    int length = strlen(d), i;
-
-    for (i = 0; i < length; i++)
-        ibuf_addchar(s, d[i]);
+    int length = strlen(d);
+    ibuf_adds(s,d,length);
 }
 
 void ibuf_delchar(struct ibuf *s)

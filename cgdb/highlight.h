@@ -24,6 +24,7 @@
 /* --------- */
 /* Functions */
 /* --------- */
+void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y);
 
 /* highlight:  Inserts the highlighting tags into the buffer.  Lines in
  * ----------  this file should be displayed with hl_wprintw from now on...

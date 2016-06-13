@@ -32,6 +32,7 @@ void ibuf_addchar(struct ibuf *s, char c);
  *  d - the string to add
  */
 void ibuf_add(struct ibuf *s, const char *d);
+void ibuf_adds(struct ibuf *s, const char *d, int length);
 
 /* ibuf_delchar: Delete the last char put in */
 void ibuf_delchar(struct ibuf *s);
