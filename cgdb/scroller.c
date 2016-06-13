@@ -427,11 +427,11 @@ void highlight_gdb(char* buffer, int nChars, struct scroller *scr, int y)
                 mvwchgat(scr->win, y, matchStart, matchLen, NULL, 1, NULL);
 
             /* }    */
+            offset += matchEnd;
         } else {
             break;
         }	
        
-        break;
     }
 
    
