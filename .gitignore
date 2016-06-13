@@ -504,7 +504,9 @@ stamp-h?
 
 # binaries
 cgdb/cgdb
-
+*.o
+*.a
+*.so
 
 # misc
 cscope.out
@@ -529,7 +531,5 @@ lib/gdbmi/gdbmi_driver
 lib/gdbmi/gdbmi_lexer.c
 lib/kui/kui_driver
 lib/tgdb/tgdb-base/tgdb_driver
-lib/tokenizer/gdblexer.c
-lib/tokenizer/gdblexer.l
 lib/tokenizer/tokenizer_driver
-
+lib/tokenizer/clexer.c
