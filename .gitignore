@@ -532,4 +532,3 @@ lib/gdbmi/gdbmi_lexer.c
 lib/kui/kui_driver
 lib/tgdb/tgdb-base/tgdb_driver
 lib/tokenizer/tokenizer_driver
-lib/tokenizer/clexer.c
