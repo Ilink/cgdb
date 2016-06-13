@@ -117,9 +117,9 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     #define n_gdb_regexes 3
     static char *gdb_regexes[n_gdb_regexes];
    
-    gdb_regexes[0] = "([^ /]*/[^ /]*[\.]?\w*[:]?[\\d]*)"; // paths
-    gdb_regexes[1] = "#\\d+"; // stacktrace numbers (appear at start of bt results)
-    gdb_regexes[2] = "0[Xx][A-Fa-f\\d]+"; // hex
+    gdb_regexes[0] = "?<filepath>([^ /]*/[^ /]*[\.]?\w*[:]?[\\d]*)"; // paths
+    gdb_regexes[1] = "?<bt_num>#\\d+"; // stacktrace numbers (appear at start of bt results)
+    gdb_regexes[2] = "?<hex>0[Xx][A-Fa-f\\d]+"; // hex
 
     
     char* merged_regex = merge_regexes(gdb_regexes, n_gdb_regexes);
@@ -152,8 +152,47 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     if (re == NULL) {
         return;
     }
-    
+  
+	int name_count = 0; 
+	pcre2_pattern_info(
+	  re,                   /* the compiled pattern */
+	  PCRE2_INFO_NAMECOUNT, /* get the number of named substrings */
+	  &name_count);          /* where to put the answer */
+
+
     pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
+
+	PCRE2_SPTR tabptr;
+    PCRE2_SPTR name_table;
+    int name_entry_size;
+
+	/* Before we can access the substrings, we must extract the table for
+	translating names to numbers, and the size of each entry in the table. */
+
+	(void)pcre2_pattern_info(
+    	re,                       /* the compiled pattern */
+	    PCRE2_INFO_NAMETABLE,     /* address of the table */
+    	&name_table);             /* where to put the answer */
+
+	(void)pcre2_pattern_info(
+    	re,                       /* the compiled pattern */
+    	PCRE2_INFO_NAMEENTRYSIZE, /* size of each entry in the table */
+    	&name_entry_size);        /* where to put the answer */
+
+    /* Now we can scan the table and, for each entry, print the number, the name,
+    and the substring itself. In the 8-bit library the number is held in two
+    bytes, most significant first. */
+
+    // tabptr = name_table;                                                 
+    // for (int i = 0; i < name_count; i++)                                 
+    // {                                                                    
+    //     int n = (tabptr[0] << 8) | tabptr[1];                            
+    //     printf("(%d) %*s: %.*s\n", n, name_entry_size - 3, tabptr + 2,   
+    //       (int)(ovector[2*n+1] - ovector[2*n]), subject + ovector[2*n]); 
+    //     tabptr += name_entry_size;                                       
+    // }                                                                    
+  
+
 
     int offset = 0;
     while(1){
@@ -167,30 +206,55 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
             NULL);                /* use default match context */
     
         if (rc > 0){
-            /* write_log("got %d matches", rc); */
-            int i = 0;
-            /* for(int i = 0; i < rc; i++){ */
-                PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
-                uint32_t matchStart = ovector[2*i];
-                uint32_t matchLen = ovector[2*i+1] - matchStart;
-                uint32_t matchEnd = ovector[2*i+1];
-                /* write_log("match start: %d, matchLen: %d\n", matchStart, matchLen); */
-                /* mvwchgat(scr->win, y, matchStart, matchLen, NULL, 1, NULL); */
-
             
-                // text before the match
-                ibuf_addchar(ibuf, HL_CHAR); 
-                ibuf_addchar(ibuf, HLG_TEXT);
-                ibuf_adds(ibuf, buffer+offset, matchStart-offset);                
-                    
-                ibuf_addchar(ibuf, HL_CHAR);
-                ibuf_addchar(ibuf, HLG_KEYWORD);
-                ibuf_adds(ibuf, buffer+matchStart, matchLen);
-                
-                /* offset += matchLen; */
-                offset = matchEnd;
-            /* }    */
+            // write_log("got %d matches", rc);
+            int i = 0;
+            PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+            uint32_t matchStart = ovector[2*i];
+            uint32_t matchLen = ovector[2*i+1] - matchStart;
+            uint32_t matchEnd = ovector[2*i+1];
+            /* write_log("match start: %d, matchLen: %d\n", matchStart, matchLen); */
+            /* mvwchgat(scr->win, y, matchStart, matchLen, NULL, 1, NULL); */
 
+            tabptr = name_table;
+            char hl_group;
+            for (int i = 0; i < name_count; i++)                                 
+            {                                                                    
+                int n = (tabptr[0] << 8) | tabptr[1];                            
+                const char* name = tabptr+2;
+                const int name_len = name_entry_size - 3;
+                const char* val = buffer + ovector[2*n];
+                const int val_len = (int)(ovector[2*n+1] - ovector[2*n]);
+
+                if(val_len > 0){
+                    if(i == 0){ 
+                        hl_group = HLG_PATH;
+                    } else if(i==1){
+                        hl_group = HLG_BT_LIST;
+                    } else {
+                        hl_group = HLG_HEX;
+                    }
+                }
+
+                write_log("%s(%d):%s(%d)", name, strlen(name), val, strlen(val));
+                write_log("(%d) %*s: %.*s", n, name_entry_size - 3, tabptr + 2,   
+                  (int)(ovector[2*n+1] - ovector[2*n]), buffer + ovector[2*n]); 
+                tabptr += name_entry_size;                                       
+            }
+            
+            // text before the match
+            ibuf_addchar(ibuf, HL_CHAR); 
+            ibuf_addchar(ibuf, HLG_TEXT);
+            ibuf_adds(ibuf, buffer+offset, matchStart-offset);                
+                
+            ibuf_addchar(ibuf, HL_CHAR);
+            // ibuf_addchar(ibuf, HLG_KEYWORD);
+            ibuf_addchar(ibuf, hl_group);
+            ibuf_adds(ibuf, buffer+matchStart, matchLen);
+            
+            /* offset += matchLen; */
+            offset = matchEnd;
+            
         } else {
             break;
         }	
