@@ -18,13 +18,36 @@
 #include <ncurses/curses.h>
 #endif /* HAVE_CURSES_H */
 
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
+
 /* Local Includes */
 #include "sources.h"
+
+struct gdb_highlighter {
+    pcre2_code *re;
+    int name_count;
+    char* merged_regex;
+    pcre2_match_data* match_data; 
+    PCRE2_SPTR name_table;
+    int name_entry_size;
+};
+
+struct gdb_highlighter* gdb_highlighter_init();
+
+inline void gdb_highlighter_free(struct gdb_highlighter* hl)
+{
+    if(!hl) return;
+    if(hl->match_data) pcre2_match_data_free(hl->match_data);
+    if(hl->merged_regex) free(hl->merged_regex);
+    if(hl->re) pcre2_code_free(hl->re);
+    free(hl);
+}
 
 /* --------- */
 /* Functions */
 /* --------- */
-void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output);
+void highlight_gdb(struct gdb_highlighter* hl, WINDOW * win, char* buffer, int nChars, int y, char** output);
 
 /* highlight:  Inserts the highlighting tags into the buffer.  Lines in
  * ----------  this file should be displayed with hl_wprintw from now on...

@@ -387,6 +387,12 @@ void scr_refresh(struct scroller *scr, int focus)
     init_pair(1, COLOR_RED, COLOR_BLACK);
     /* wattron(scr->win, COLOR_PAIR(1));     */
 
+    struct gdb_highlighter* hl = gdb_highlighter_init();
+    if(hl == NULL){
+        exit(-1);
+    }
+
+
     /* Start drawing at the bottom of the viewable space, and work our way up */
     for (nlines = 1; nlines <= height; nlines++) {
 
@@ -407,7 +413,7 @@ void scr_refresh(struct scroller *scr, int focus)
 
         char* highlighted_buffer = NULL;
         /* highlight_gdb(buffer, length < width ? length : width, scr, height - nlines); */
-        highlight_gdb(scr->win, buffer, width, height - nlines, &highlighted_buffer);
+        highlight_gdb(hl, scr->win, buffer, width, height - nlines, &highlighted_buffer);
         if(highlighted_buffer != NULL){  
         }                                
 

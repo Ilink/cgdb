@@ -33,8 +33,6 @@
 #if HAVE_REGEX_H
 #include <regex.h>
 #endif /* HAVE_REGEX_H */
-#define PCRE2_CODE_UNIT_WIDTH 8
-#include <pcre2.h>
 
 /* Local Includes */
 #include "highlight.h"
@@ -52,10 +50,17 @@
 
 #define HL_CHAR CHAR_MAX        /* Special marker character */
 
+#define n_gdb_regexes 3
+static char *gdb_regexes[] = {
+    "?<filepath>([^ /]*/[^ /]*[\.]?\w*[:]?[\\d]*)", // paths
+    "?<bt_num>#\\d+", // stacktrace numbers (appear at start of bt results)
+    "?<hex>0[Xx][A-Fa-f\\d]+" // hex
+};
+
+
 /* --------------- */
 /* Local Variables */
 /* --------------- */
-
 // unless the return is null, it must be freed
 static char* merge_regexes(const char** regexes, const int len)
 {
@@ -99,27 +104,62 @@ static char* merge_regexes(const char** regexes, const int len)
     return out;
 }
 
+struct gdb_highlighter* gdb_highlighter_init()
+{
+    struct gdb_highlighter* hl = (struct gdb_highlighter*) cgdb_malloc(sizeof (struct gdb_highlighter));
+    char* merged_regex = merge_regexes(gdb_regexes, n_gdb_regexes);
+    hl->merged_regex = merged_regex;
+    
+    int errNum,errOffset;
+    hl->re = pcre2_compile(
+      merged_regex,
+      PCRE2_ZERO_TERMINATED, 
+      0,                    
+      &errNum,          
+      &errOffset,      
+      NULL);          
+   
+    if(merged_regex){
+        // free(merged_regex);
+    }
+
+    if (hl->re == NULL) {
+        return NULL;
+    }
+
+    hl->match_data = pcre2_match_data_create_from_pattern(hl->re, NULL);
+    
+    hl->name_count = 0; 
+    pcre2_pattern_info(
+      hl->re,
+      PCRE2_INFO_NAMECOUNT, 
+      &(hl->name_count)); 
+    
+    (void)pcre2_pattern_info(
+        hl->re,
+        PCRE2_INFO_NAMETABLE,
+        &(hl->name_table));
+
+    (void)pcre2_pattern_info(
+        hl->re,
+        PCRE2_INFO_NAMEENTRYSIZE,
+        &(hl->name_entry_size));
+    
+    return hl;
+}
+
+
 // TODO: move me! this should be a callback within scr_refresh or something
 // TODO: should this be line-by-line or buffer at once?
 //       some stuff needs previous line to work.
 //       like if we have some command we just ran and want to highlight it
-void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
+void highlight_gdb(struct gdb_highlighter* hl, WINDOW * win, char* buffer, int nChars, int y, char** output)
 {
     *output = NULL;
     if(nChars == 0){
         return;
     }
    
-    // TODO this should be on the heap
-    // TODO this should be some kind of struct/abstraction
-    #define n_gdb_regexes 3
-    static char *gdb_regexes[n_gdb_regexes];
-   
-    gdb_regexes[0] = "?<filepath>([^ /]*/[^ /]*[\.]?\w*[:]?[\\d]*)"; // paths
-    gdb_regexes[1] = "?<bt_num>#\\d+"; // stacktrace numbers (appear at start of bt results)
-    gdb_regexes[2] = "?<hex>0[Xx][A-Fa-f\\d]+"; // hex
-
-    
     char* merged_regex = merge_regexes(gdb_regexes, n_gdb_regexes);
     // write_log("merged regex: %s", merged_regex);
     struct ibuf *ibuf = ibuf_init();
@@ -188,30 +228,30 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     // find every match
     while(1){
         rc = pcre2_match(
-            re,                   /* the compiled pattern */
+            hl->re,                   /* the compiled pattern */
             buffer,              /* the subject string */
             nChars,       /* the length of the subject */
             offset,         /* starting offset in the subject */
             0,              /* options */
-            match_data,           /* block for storing the result */
+            hl->match_data,           /* block for storing the result */
             NULL);                /* use default match context */
     
         if (rc > 0){
             
             // write_log("got %d matches", rc);
             int i = 0;
-            PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+            PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(hl->match_data);
             uint32_t matchStart = ovector[2*i];
             uint32_t matchLen = ovector[2*i+1] - matchStart;
             uint32_t matchEnd = ovector[2*i+1];
 
-            tabptr = name_table;
+            tabptr = hl->name_table;
             char hl_group;
-            for (int i = 0; i < name_count; i++)                                 
+            for (int i = 0; i < hl->name_count; i++)                                 
             {                                                                    
                 int n = (tabptr[0] << 8) | tabptr[1];                            
                 const char* name = tabptr+2;
-                const int name_len = name_entry_size - 3;
+                const int name_len = hl->name_entry_size - 3;
                 const char* val = buffer + ovector[2*n];
                 const int val_len = (int)(ovector[2*n+1] - ovector[2*n]);
 
