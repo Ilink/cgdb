@@ -422,8 +422,7 @@ void scr_refresh(struct scroller *scr, int focus)
                 highlighted_buffer, 
                 height-nlines);
 
-        // TODO: handle null case
-        free(highlighted_buffer);
+        if(highlighted_buffer) free(highlighted_buffer);
         
 
         /* Update our position */
@@ -450,6 +449,7 @@ void scr_refresh(struct scroller *scr, int focus)
     }
 
     free(buffer);
+    gdb_highlighter_free(hl);
     wrefresh(scr->win);
     /* wattroff(scr->win, COLOR_PAIR(1)); */
 }

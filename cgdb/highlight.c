@@ -149,67 +149,35 @@ struct gdb_highlighter* gdb_highlighter_init()
 }
 
 
-// TODO: move me! this should be a callback within scr_refresh or something
-// TODO: should this be line-by-line or buffer at once?
-//       some stuff needs previous line to work.
-//       like if we have some command we just ran and want to highlight it
 void highlight_gdb(struct gdb_highlighter* hl, WINDOW * win, char* buffer, int nChars, int y, char** output)
 {
     *output = NULL;
     if(nChars == 0){
         return;
     }
+    if(!hl){
+        return;
+    }
    
-    char* merged_regex = merge_regexes(gdb_regexes, n_gdb_regexes);
-    // write_log("merged regex: %s", merged_regex);
+    // char* merged_regex = merge_regexes(gdb_regexes, n_gdb_regexes);
     struct ibuf *ibuf = ibuf_init();
 
-
     int errNum,errOffset;
-    const char* pathRegex = merged_regex;
+    // const char* pathRegex = merged_regex;
 
     int rc;
     int result;
-    pcre2_code *re = pcre2_compile(
-      pathRegex,  
-      PCRE2_ZERO_TERMINATED, 
-      0,                    
-      &errNum,          
-      &errOffset,      
-      NULL);          
 
     int startOffset = 0;
     uint32_t options = 0;
 
-    if (re == NULL) {
-        goto cleanup; 
-    }
+    // if (re == NULL) {
+    //     goto cleanup; 
+    // }
   
-	int name_count = 0; 
-	pcre2_pattern_info(
-	  re,                   /* the compiled pattern */
-	  PCRE2_INFO_NAMECOUNT, /* get the number of named substrings */
-	  &name_count);          /* where to put the answer */
-
-
-    pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
+    // pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
 
 	PCRE2_SPTR tabptr;
-    PCRE2_SPTR name_table;
-    int name_entry_size;
-
-	/* Before we can access the substrings, we must extract the table for
-	translating names to numbers, and the size of each entry in the table. */
-
-	(void)pcre2_pattern_info(
-    	re,                       /* the compiled pattern */
-	    PCRE2_INFO_NAMETABLE,     /* address of the table */
-    	&name_table);             /* where to put the answer */
-
-	(void)pcre2_pattern_info(
-    	re,                       /* the compiled pattern */
-    	PCRE2_INFO_NAMEENTRYSIZE, /* size of each entry in the table */
-    	&name_entry_size);        /* where to put the answer */
 
     /* Now we can scan the table and, for each entry, print the number, the name,
     and the substring itself. In the 8-bit library the number is held in two
@@ -268,7 +236,7 @@ void highlight_gdb(struct gdb_highlighter* hl, WINDOW * win, char* buffer, int n
                 // write_log("%s(%d):%s(%d)", name, strlen(name), val, strlen(val));
                 // write_log("(%d) %*s: %.*s", n, name_entry_size - 3, tabptr + 2,   
                 //   (int)(ovector[2*n+1] - ovector[2*n]), buffer + ovector[2*n]); 
-                tabptr += name_entry_size;                                       
+                tabptr += hl->name_entry_size;                                       
             }
             
             // text before the match
@@ -297,9 +265,6 @@ void highlight_gdb(struct gdb_highlighter* hl, WINDOW * win, char* buffer, int n
     *output = out_buf; 
 
 cleanup:
-    if(merged_regex != NULL) free(merged_regex);
-    if(match_data != NULL) pcre2_match_data_free(match_data);
-    if(re != NULL) pcre2_code_free(re);
     ibuf_free(ibuf);
 }
 

@@ -25,10 +25,10 @@
 #include "sources.h"
 
 struct gdb_highlighter {
+    pcre2_match_data* match_data; 
     pcre2_code *re;
     int name_count;
     char* merged_regex;
-    pcre2_match_data* match_data; 
     PCRE2_SPTR name_table;
     int name_entry_size;
 };
