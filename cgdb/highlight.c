@@ -56,11 +56,50 @@
 /* Local Variables */
 /* --------------- */
 
-const char** gdb_regexes = { 
-    "([^ /]*/[^ /]*[\.]?\w*[:]?[\d]*)", // paths
-    "#\d+" // stacktrace numbers
-};
-const int n_gdb_regexes = 2;
+
+
+// unless the return is null, it must be freed
+static char* merge_regexes(const char** regexes, const int len)
+{
+    char* out = NULL;
+    int outLen = 0;
+    for(int i = 0; i < len; i++){
+        const char* reg = regexes[i];
+        // +2 includes both parens that will be added
+        outLen += strlen(reg) + 2;
+        if(i < len-1){
+            // include the trailing '|'
+            ++outLen;
+        }
+    }
+
+    // null terminator
+    ++outLen;
+    /* write_log("merged_regex size: %d", outLen); */
+    out = malloc(sizeof(char) * outLen);
+
+    int out_idx = 0;                          
+
+    for(int i = 0; i < len; i++){             
+        const char* reg = regexes[i];         
+        out[out_idx] = '(';                   
+        ++out_idx;                            
+
+        memcpy(out+out_idx, reg, strlen(reg));
+        out_idx += strlen(reg);               
+
+        out[out_idx] = ')';                   
+        ++out_idx;                            
+
+        if(i < len-1){                        
+            out[out_idx] = '|';               
+            ++out_idx;                        
+        }                                     
+    }                                         
+    out[outLen-1] = '\0';                     
+
+    return out;
+}
 
 // TODO: move me! this should be a callback within scr_refresh or something
 // TODO: should this be line-by-line or buffer at once?
@@ -72,7 +111,19 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     if(nChars == 0){
         return;
     }
+   
+    // TODO this should be on the heap
+    // TODO this should be some kind of struct/abstraction
+    #define n_gdb_regexes 3
+    static char *gdb_regexes[n_gdb_regexes];
+   
+    gdb_regexes[0] = "([^ /]*/[^ /]*[\.]?\w*[:]?[\\d]*)"; // paths
+    gdb_regexes[1] = "#\\d+"; // stacktrace numbers (appear at start of bt results)
+    gdb_regexes[2] = "0[Xx][A-Fa-f\\d]+"; // hex
 
+    
+    char* merged_regex = merge_regexes(gdb_regexes, n_gdb_regexes);
+    write_log("merged regex: %s", merged_regex);
     struct ibuf *ibuf = ibuf_init();
 
     /* buffer = "imnotapath f/f.c imalsonotapath f/f.c:500"; */
@@ -81,11 +132,9 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     /* write_log("buffer (len=%d) %.*s", nChars, (int)nChars, buffer); */
 
     int errNum,errOffset;
-    // const char* pathRegex ="([^ /]*/[^ /]*\.?[^ /]*:?[\d]*)";
-    const char* pathRegex ="([^ /]*/[^ /]*[\.]?\w*[:]?[\d]*)";
-    // const char* pathRegex ="([^ /]*/[^ /]+\.[^ /]+:?[\d]*)";
-    // const char* pathRegex ="([^ /]*/[^ /]*)";
-    /* init_pair(1, COLOR_RED, COLOR_BLACK); */
+    const char* pathRegex = merged_regex;
+    // const char* pathRegex ="([^ /]*/[^ /]*[\.]?\w*[:]?[\d]*)|(0[Xx][A-Fa-f\d]+)";
+    // const char* pathRegex ="([^ /]*/[^ /]*[\.]?\w*[:]?[\d]*)";
 
     int rc;
     int result;
@@ -128,23 +177,25 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
                 /* write_log("match start: %d, matchLen: %d\n", matchStart, matchLen); */
                 /* mvwchgat(scr->win, y, matchStart, matchLen, NULL, 1, NULL); */
 
-            /* }    */
             
-            // text before the match
-            ibuf_addchar(ibuf, HL_CHAR); 
-            ibuf_addchar(ibuf, HLG_TEXT);
-            ibuf_adds(ibuf, buffer+offset, matchStart-offset);                
+                // text before the match
+                ibuf_addchar(ibuf, HL_CHAR); 
+                ibuf_addchar(ibuf, HLG_TEXT);
+                ibuf_adds(ibuf, buffer+offset, matchStart-offset);                
+                    
+                ibuf_addchar(ibuf, HL_CHAR);
+                ibuf_addchar(ibuf, HLG_KEYWORD);
+                ibuf_adds(ibuf, buffer+matchStart, matchLen);
                 
-            ibuf_addchar(ibuf, HL_CHAR);
-            ibuf_addchar(ibuf, HLG_KEYWORD);
-            ibuf_adds(ibuf, buffer+matchStart, matchLen);
-            
-            /* offset += matchLen; */
-            offset = matchEnd;
+                /* offset += matchLen; */
+                offset = matchEnd;
+            /* }    */
+
         } else {
             break;
         }	
-       
+        
+        /* break; */
     }
 
     // text after the last match until the end of the buffer
@@ -159,39 +210,10 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     char* out_buf = strdup(ibuf_get(ibuf));  
     *output = out_buf; 
 
+    if(merged_regex != NULL){
+        free(merged_regex);
+    }
 
-    /* init_pair(1, COLOR_RED, COLOR_BLACK); */
-    /* char cur,prev;                                                         */
-    /* for(int lineIdx = 0; lineIdx < nChars; lineIdx++) {                    */
-    /*     cur = buffer[lineIdx];                                             */
-        
-        // backtrace
-        // the start of each stack frame line is #n EG: #1
-    /*     if(cur == '#'){                                                    */
-    /*         int startIdx = lineIdx;                                        */
-    /*         ++lineIdx;                                                     */
-    /*         int numSize = consume_num(&lineIdx, buffer, nChars);           */
-    /*         if(numSize > 0){                                               */
-                // the +1 includes the "#"
-    /*             mvwchgat(scr->win, y, startIdx, numSize+1, NULL, 1, NULL); */
-    /*         }                                                              */
-    /*     }                                                                  */
-
-        // hex
-    /*     if(cur == '0'){                                                    */
-    /*         int startIdx = lineIdx;                                        */
-    /*         int numSize = consume_hex(&lineIdx, buffer, nChars);           */
-    /*         if(numSize > 0){                                               */
-    /*             mvwchgat(scr->win, y, startIdx, numSize, NULL, 1, NULL);   */
-    /*         }                                                              */
-    /*     }                                                                  */
-
-        /* if(cur == '*' || cur == '/' || cur == '+' || cur == '-'){ */
-        /*     mvwchgat(scr->win, y, lineIdx, 1, NULL, 1, NULL);     */
-        /* }                                                         */
-        
-    /* }                                                                      */
-    
 }
 
 static int highlight_node(struct list_node *node)
