@@ -300,69 +300,6 @@ void scr_move(struct scroller *scr, int pos_r, int pos_c, int height, int width)
     wclear(scr->win);
 }
 
-int consume_path(int* lineIdx, char* buffer, int nChars)
-{
-    /*
-       f/f/
-       /f/f
-
-       look for a slash, then backtrack until we find a space
-
-       look for escaped spaces (or not, who cares)
-       after the path, if it exists, look for ":123"
-    */
-
-    return 0;
-}
-
-int consume_hex(int* lineIdx, char* buffer, int nChars)
-{
-    char cur = buffer[*lineIdx];
-    if(cur != '0') return 0;
-    
-    ++(*lineIdx);
-    if(*lineIdx < nChars){
-        cur = buffer[*lineIdx];
-        if(cur == 'x' || cur == 'X'){
-            ++(*lineIdx);
-            int numSize = consume_num(lineIdx, buffer, nChars);
-            if(numSize > 0){
-                return numSize+2;
-            } 
-        } 
-    } 
-
-    return 0;
-}
-
-int consume_num(int* lineIdx, char* buffer, int nChars)
-{
-    int numSize = 0;
-    char cur;
-
-    while(*lineIdx < nChars){
-        cur = buffer[*lineIdx];
-        // ascii 0-9
-        bool isDec = cur >= 48 && cur <= 57;
-        bool isHexLower = cur >= 65 && cur <= 70;
-        bool isHexUpper = cur >= 97 && cur <= 102;
-        bool isHex = isHexLower || isHexUpper;
-
-        if(isDec || isHex){
-            ++numSize;
-            ++(*lineIdx);
-        } else {
-            // TODO the loop this is called in should be ok with going 1 past
-            --(*lineIdx);
-            break;
-        }
-    }
-
-    
-    return numSize;
-}
-
-
 void scr_refresh(struct scroller *scr, int focus)
 {
     int length;                 /* Length of current line */
@@ -384,9 +321,6 @@ void scr_refresh(struct scroller *scr, int focus)
     buffer = malloc(width + 1);
     buffer[width] = 0;
 
-    init_pair(1, COLOR_RED, COLOR_BLACK);
-    /* wattron(scr->win, COLOR_PAIR(1));     */
-
     struct gdb_highlighter* hl = gdb_highlighter_init();
     if(hl == NULL){
         exit(-1);
@@ -396,12 +330,6 @@ void scr_refresh(struct scroller *scr, int focus)
     /* Start drawing at the bottom of the viewable space, and work our way up */
     for (nlines = 1; nlines <= height; nlines++) {
 
-        /*
-        eat char:
-            if some kind of special char, color it
-            else try to read the whole word
-        */
-
         /* Print the current line [segment] */
         memset(buffer, ' ', width);
         if (r >= 0) {
@@ -409,15 +337,9 @@ void scr_refresh(struct scroller *scr, int focus)
             memcpy(buffer, scr->buffer[r] + c, length < width ? length : width);
         }
 
-        /* mvwprintw(scr->win, height - nlines, 0, "%s", buffer); */
-
         char* highlighted_buffer = NULL;
-        /* highlight_gdb(buffer, length < width ? length : width, scr, height - nlines); */
         highlight_gdb(hl, scr->win, buffer, width, height - nlines, &highlighted_buffer);
-        if(highlighted_buffer != NULL){  
-        }                                
 
-        /* mvwprintw(scr->win, height - nlines, 0, "%s", buffer); */
         hl_wprintw2(scr->win,
                 highlighted_buffer, 
                 height-nlines);
@@ -451,5 +373,4 @@ void scr_refresh(struct scroller *scr, int focus)
     free(buffer);
     gdb_highlighter_free(hl);
     wrefresh(scr->win);
-    /* wattroff(scr->win, COLOR_PAIR(1)); */
 }
