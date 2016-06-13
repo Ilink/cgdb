@@ -155,6 +155,11 @@ int logger_set_fd(struct logger *log, FILE * fd);
 int logger_write_pos(struct logger *log,
         const char *file, int line, const char *fmt, ...);
 
+// logger_write_pos(logger, __FILE__, __LINE__, "sigaction failed ");
+// #define log(fmt, ...) logger_write_pos(logger, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+
+int write_log(const char* fmt, ...);
+
 /*@}*/
 
 /*@{*/

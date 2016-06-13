@@ -185,6 +185,37 @@ int logger_get_file(struct logger *log, char **file)
     return 0;
 }
 
+int write_log(const char *fmt, ...)
+{
+    va_list ap;
+    char va_buf[MAXLINE];
+
+    if (!logger)
+        return -1;
+
+    /* It's OK to write nothing */
+    if (!fmt)
+        return 0;
+
+    if (!logger->recording)
+        return 0;
+
+    /* Get the buffer with format */
+    va_start(ap, fmt);
+#ifdef   HAVE_VSNPRINTF
+    vsnprintf(va_buf, sizeof (va_buf), fmt, ap);    /* this is safe */
+#else
+    vsprintf(va_buf, fmt, ap);  /* this is not safe */
+#endif
+    va_end(ap);
+
+    fprintf(logger->fd, "%s\n", va_buf);
+
+    logger->used = 1;
+
+    return 0;
+}
+
 int logger_write_pos(struct logger *log,
         const char *file, int line, const char *fmt, ...)
 {
