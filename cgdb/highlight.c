@@ -56,8 +56,6 @@
 /* Local Variables */
 /* --------------- */
 
-
-
 // unless the return is null, it must be freed
 static char* merge_regexes(const char** regexes, const int len)
 {
@@ -123,18 +121,12 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
 
     
     char* merged_regex = merge_regexes(gdb_regexes, n_gdb_regexes);
-    write_log("merged regex: %s", merged_regex);
+    // write_log("merged regex: %s", merged_regex);
     struct ibuf *ibuf = ibuf_init();
 
-    /* buffer = "imnotapath f/f.c imalsonotapath f/f.c:500"; */
-    /* nChars = strlen(buffer);  */
-
-    /* write_log("buffer (len=%d) %.*s", nChars, (int)nChars, buffer); */
 
     int errNum,errOffset;
     const char* pathRegex = merged_regex;
-    // const char* pathRegex ="([^ /]*/[^ /]*[\.]?\w*[:]?[\d]*)|(0[Xx][A-Fa-f\d]+)";
-    // const char* pathRegex ="([^ /]*/[^ /]*[\.]?\w*[:]?[\d]*)";
 
     int rc;
     int result;
@@ -150,7 +142,7 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     uint32_t options = 0;
 
     if (re == NULL) {
-        return;
+        goto cleanup; 
     }
   
 	int name_count = 0; 
@@ -192,9 +184,8 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     //     tabptr += name_entry_size;                                       
     // }                                                                    
   
-
-
     int offset = 0;
+    // find every match
     while(1){
         rc = pcre2_match(
             re,                   /* the compiled pattern */
@@ -213,8 +204,6 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
             uint32_t matchStart = ovector[2*i];
             uint32_t matchLen = ovector[2*i+1] - matchStart;
             uint32_t matchEnd = ovector[2*i+1];
-            /* write_log("match start: %d, matchLen: %d\n", matchStart, matchLen); */
-            /* mvwchgat(scr->win, y, matchStart, matchLen, NULL, 1, NULL); */
 
             tabptr = name_table;
             char hl_group;
@@ -236,9 +225,9 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
                     }
                 }
 
-                write_log("%s(%d):%s(%d)", name, strlen(name), val, strlen(val));
-                write_log("(%d) %*s: %.*s", n, name_entry_size - 3, tabptr + 2,   
-                  (int)(ovector[2*n+1] - ovector[2*n]), buffer + ovector[2*n]); 
+                // write_log("%s(%d):%s(%d)", name, strlen(name), val, strlen(val));
+                // write_log("(%d) %*s: %.*s", n, name_entry_size - 3, tabptr + 2,   
+                //   (int)(ovector[2*n+1] - ovector[2*n]), buffer + ovector[2*n]); 
                 tabptr += name_entry_size;                                       
             }
             
@@ -248,18 +237,15 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
             ibuf_adds(ibuf, buffer+offset, matchStart-offset);                
                 
             ibuf_addchar(ibuf, HL_CHAR);
-            // ibuf_addchar(ibuf, HLG_KEYWORD);
             ibuf_addchar(ibuf, hl_group);
             ibuf_adds(ibuf, buffer+matchStart, matchLen);
             
-            /* offset += matchLen; */
             offset = matchEnd;
             
         } else {
             break;
         }	
         
-        /* break; */
     }
 
     // text after the last match until the end of the buffer
@@ -267,21 +253,19 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
     ibuf_addchar(ibuf, HLG_TEXT);
     ibuf_adds(ibuf, buffer+offset, nChars - offset);                
     
-   
-    if(match_data != NULL) pcre2_match_data_free(match_data);
-    if(re != NULL) pcre2_code_free(re);
-
     char* out_buf = strdup(ibuf_get(ibuf));  
     *output = out_buf; 
 
-    if(merged_regex != NULL){
-        free(merged_regex);
-    }
-
+cleanup:
+    if(merged_regex != NULL) free(merged_regex);
+    if(match_data != NULL) pcre2_match_data_free(match_data);
+    if(re != NULL) pcre2_code_free(re);
+    ibuf_free(ibuf);
 }
 
 static int highlight_node(struct list_node *node)
 {
+    int ret_code = 0;
     struct tokenizer *t = tokenizer_init();
     int ret;
     struct ibuf *ibuf = ibuf_init();
@@ -296,7 +280,8 @@ static int highlight_node(struct list_node *node)
 
     if (tokenizer_set_file(t, node->path, node->language) == -1) {
         if_print_message("%s:%d tokenizer_set_file error", __FILE__, __LINE__);
-        return -1;
+        ret_code = -1;
+        goto cleanup;
     }
 
     while ((ret = tokenizer_get_token(t)) > 0) {
@@ -364,12 +349,14 @@ static int highlight_node(struct list_node *node)
                 ibuf_add(ibuf, tokenizer_get_data(t));
                 break;
             default:
-                return -1;
-                break;
+                ret_code = -1;
+                goto cleanup;
         }
     }
 
-    return 0;
+cleanup:
+    ibuf_free(ibuf);
+    return ret_code;
 }
 
 /* --------- */
