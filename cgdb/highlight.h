@@ -24,7 +24,7 @@
 /* --------- */
 /* Functions */
 /* --------- */
-void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y);
+void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output);
 
 /* highlight:  Inserts the highlighting tags into the buffer.  Lines in
  * ----------  this file should be displayed with hl_wprintw from now on...
@@ -42,6 +42,7 @@ void highlight(struct list_node *node);
  *   offset:  Character (in line) to start at (0..length-1)
  */
 void hl_wprintw(WINDOW * win, const char *line, int width, int offset);
+void hl_wprintw2(WINDOW * win, const char *line, int height);
 
 /* hl_regex: Matches a regular expression to some lines.
  * ---------

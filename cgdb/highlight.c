@@ -55,27 +55,30 @@
 /* --------------- */
 /* Local Variables */
 /* --------------- */
+
+const char** gdb_regexes = { 
+    "([^ /]*/[^ /]*[\.]?\w*[:]?[\d]*)", // paths
+    "#\d+" // stacktrace numbers
+};
+const int n_gdb_regexes = 2;
+
 // TODO: move me! this should be a callback within scr_refresh or something
 // TODO: should this be line-by-line or buffer at once?
 //       some stuff needs previous line to work.
 //       like if we have some command we just ran and want to highlight it
-void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y)
-/* void highlight_gdb(char* buffer, int nChars, struct scroller *scr, int y) */
+void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y, char** output)
 {
+    *output = NULL;
     if(nChars == 0){
         return;
     }
 
     struct ibuf *ibuf = ibuf_init();
 
-    ibuf_addchar(ibuf, HL_CHAR);
-    ibuf_addchar(ibuf, HLG_TEXT);
-    
-
     /* buffer = "imnotapath f/f.c imalsonotapath f/f.c:500"; */
     /* nChars = strlen(buffer);  */
 
-    write_log("buffer (len=%d) %.*s", nChars, (int)nChars, buffer);
+    /* write_log("buffer (len=%d) %.*s", nChars, (int)nChars, buffer); */
 
     int errNum,errOffset;
     // const char* pathRegex ="([^ /]*/[^ /]*\.?[^ /]*:?[\d]*)";
@@ -115,31 +118,46 @@ void highlight_gdb(WINDOW * win, char* buffer, int nChars, int y)
             NULL);                /* use default match context */
     
         if (rc > 0){
-            write_log("got %d matches", rc);
+            /* write_log("got %d matches", rc); */
             int i = 0;
             /* for(int i = 0; i < rc; i++){ */
                 PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
                 uint32_t matchStart = ovector[2*i];
                 uint32_t matchLen = ovector[2*i+1] - matchStart;
                 uint32_t matchEnd = ovector[2*i+1];
-                write_log("match start: %d, matchLen: %d\n", matchStart, matchLen);
+                /* write_log("match start: %d, matchLen: %d\n", matchStart, matchLen); */
                 /* mvwchgat(scr->win, y, matchStart, matchLen, NULL, 1, NULL); */
 
             /* }    */
+            
+            // text before the match
+            ibuf_addchar(ibuf, HL_CHAR); 
+            ibuf_addchar(ibuf, HLG_TEXT);
+            ibuf_adds(ibuf, buffer+offset, matchStart-offset);                
+                
             ibuf_addchar(ibuf, HL_CHAR);
             ibuf_addchar(ibuf, HLG_KEYWORD);
             ibuf_adds(ibuf, buffer+matchStart, matchLen);
             
-            offset += matchEnd;
+            /* offset += matchLen; */
+            offset = matchEnd;
         } else {
             break;
         }	
        
     }
 
+    // text after the last match until the end of the buffer
+    ibuf_addchar(ibuf, HL_CHAR);
+    ibuf_addchar(ibuf, HLG_TEXT);
+    ibuf_adds(ibuf, buffer+offset, nChars - offset);                
+    
    
     if(match_data != NULL) pcre2_match_data_free(match_data);
     if(re != NULL) pcre2_code_free(re);
+
+    char* out_buf = strdup(ibuf_get(ibuf));  
+    *output = out_buf; 
 
 
     /* init_pair(1, COLOR_RED, COLOR_BLACK); */
@@ -385,6 +403,93 @@ static char *highlight_line_segment(const char *orig, int start, int end)
 
     return new_line;
 }
+
+void hl_wprintw2(WINDOW * win, const char *line, int height)
+{
+    int length;                 /* Length of the line passed in */
+    enum hl_group_kind color;   /* Color used to print current char */
+    int i = 0;                      /* Loops through the line char by char */
+    int j;                      /* General iterator */
+    int p = 0;                      /* Count of chars printed to screen */
+    int pad;                    /* Used to pad partial tabs */
+    int attr;                   /* A temp variable used for attributes */
+    int highlight_tabstop = cgdbrc_get(CGDBRC_TABSTOP)->variant.int_val;
+
+    /* Jump ahead to the character at offset (process color commands too) */
+    length = strlen(line);
+    color = HLG_TEXT;
+
+    /* for (i = 0, j = 0; i < length; i++) {                             */
+    /*     if (line[i] == HL_CHAR && i + 1 < length) {                   */
+            /* Even though we're not printing anything in this loop,  */
+            /* the color attribute needs to be maintained for when we */
+            /* start printing in the loop below.  This way the text   */
+            /* printed will be done in the correct color.             */
+    /*         color = (int) line[++i];                                  */
+    /*     } else {                                                      */
+    /*         j++;                                                      */
+    /*     }                                                             */
+    /* }                                                                 */
+    /* pad = j - offset;                                                 */
+
+    /* Pad tab spaces if offset is less than the size of a tab */
+    /* for (j = 0, p = 0; j < pad && p < width; j++, p++)                */
+    /*     wprintw(win, " ");                                            */
+
+    /* Set the color appropriately */
+    if (hl_groups_get_attr(hl_groups_instance, color, &attr) == -1) {
+        logger_write_pos(logger, __FILE__, __LINE__,
+                "hl_groups_get_attr error");
+        return;
+    }
+    /* mvwprintw(win, height, 0, "%s", line); */
+
+    wattron(win, attr);
+    /* for(; i < length; i++){                       */
+    /*     mvwprintw(win, height, i, "%c", line[i]); */
+        
+    /* }                                             */
+
+    /* Print string 1 char at a time */
+    for (; i < length; i++) {
+        if (line[i] == HL_CHAR) {
+            if (++i < length) {
+                wattroff(win, attr);
+                color = (int) line[i];
+
+                if (hl_groups_get_attr(hl_groups_instance, color, &attr) == -1) {
+                    logger_write_pos(logger, __FILE__, __LINE__,
+                            "hl_groups_get_attr error");
+                    return;
+                }
+
+                wattron(win, attr);
+            }
+        } else {
+            mvwprintw(win, height, p, "%c", line[i]);
+            ++p;
+            /* wprintw(win, "%c", line[i]); */
+            /* switch (line[i]) {                                                   */
+            /*     case '\t':                                                       */
+            /*         do {                                                         */
+            /*             wprintw(win, " ");                                       */
+            /*             p++;                                                     */
+            /*         } while ((p + offset) % highlight_tabstop > 0 && p < width); */
+            /*         break;                                                       */
+            /*     default:                                                         */
+            /*         wprintw(win, "%c", line[i]);                                 */
+            /*         p++;                                                         */
+            /* }                                                                    */
+        }
+    }
+
+    /* Shut off color attribute */
+    wattroff(win, attr);
+
+}
+
+
+
 
 void hl_wprintw(WINDOW * win, const char *line, int width, int offset)
 {

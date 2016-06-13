@@ -403,10 +403,21 @@ void scr_refresh(struct scroller *scr, int focus)
             memcpy(buffer, scr->buffer[r] + c, length < width ? length : width);
         }
 
-        mvwprintw(scr->win, height - nlines, 0, "%s", buffer);
+        /* mvwprintw(scr->win, height - nlines, 0, "%s", buffer); */
 
+        char* highlighted_buffer = NULL;
         /* highlight_gdb(buffer, length < width ? length : width, scr, height - nlines); */
-        highlight_gdb(scr->win, buffer, width, height - nlines);
+        highlight_gdb(scr->win, buffer, width, height - nlines, &highlighted_buffer);
+        if(highlighted_buffer != NULL){  
+        }                                
+
+        /* mvwprintw(scr->win, height - nlines, 0, "%s", buffer); */
+        hl_wprintw2(scr->win,
+                highlighted_buffer, 
+                height-nlines);
+
+        // TODO: handle null case
+        free(highlighted_buffer);
         
 
         /* Update our position */
