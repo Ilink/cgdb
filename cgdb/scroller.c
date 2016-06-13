@@ -373,19 +373,16 @@ void highlight_gdb(char* buffer, int nChars, struct scroller *scr, int y)
         return;
     }
     
-    buffer = "imnotapath f/f.c imalsonotapath f/f.c:500";
-    nChars = strlen(buffer); 
+    /* buffer = "imnotapath f/f.c imalsonotapath f/f.c:500"; */
+    /* nChars = strlen(buffer);  */
 
     write_log("buffer (len=%d) %.*s", nChars, (int)nChars, buffer);
 
 	int errNum,errOffset;
-    /* const char* pathRegex ="([^\s]+)/([^/\s]+)"; */
-    const char* pathRegex ="([^ /]*/[^ /]+:?[\d]*)";
-    /* const char* pathRegex ="([^\s]+)/([^/\s]+)"; */
-    /* const char* pathRegex ="[^\n\s]+\/[^\/\s\n]+"; */
-    /* const char* pathRegex ="[^\n\s\r\t]+/"; */
-    /* const char* pathRegex = "(/)?([^/\s]+(/)?)+"; */
-    /* const char* pathRegex ="#"; */
+    // const char* pathRegex ="([^ /]*/[^ /]*\.?[^ /]*:?[\d]*)";
+    const char* pathRegex ="([^ /]*/[^ /]*[\.]?\w*[:]?[\d]*)";
+    // const char* pathRegex ="([^ /]*/[^ /]+\.[^ /]+:?[\d]*)";
+    // const char* pathRegex ="([^ /]*/[^ /]*)";
     init_pair(1, COLOR_RED, COLOR_BLACK);
 
     int rc;
@@ -407,38 +404,36 @@ void highlight_gdb(char* buffer, int nChars, struct scroller *scr, int y)
     
     pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
 
-	rc = pcre2_match(
-		re,                   /* the compiled pattern */
-		buffer,              /* the subject string */
-		nChars,       /* the length of the subject */
-		16,         /* starting offset in the subject */
-		0,              /* options */
-		match_data,           /* block for storing the result */
-		NULL);                /* use default match context */
- 
-    if (rc > 0){
-        write_log("got %d matches", rc);
-        for(int i = 0; i < rc; i++){
-            PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
-            /* PCRE2_SPTR substring_start = subject + ovector[2*i]; */
-            /* uint32_t substring_length = ovector[2*i+1] - ovector[2*i]; */
-            uint32_t matchStart = ovector[2*i];
+    int offset = 0;
+    while(1){
+        rc = pcre2_match(
+            re,                   /* the compiled pattern */
+            buffer,              /* the subject string */
+            nChars,       /* the length of the subject */
+            offset,         /* starting offset in the subject */
+            0,              /* options */
+            match_data,           /* block for storing the result */
+            NULL);                /* use default match context */
+     
+        if (rc > 0){
+            write_log("got %d matches", rc);
+            int i = 0;
+            /* for(int i = 0; i < rc; i++){ */
+                PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+                uint32_t matchStart = ovector[2*i];
+                uint32_t matchLen = ovector[2*i+1] - matchStart;
+                uint32_t matchEnd = ovector[2*i+1];
+                write_log("match start: %d, matchLen: %d\n", matchStart, matchLen);
+                mvwchgat(scr->win, y, matchStart, matchLen, NULL, 1, NULL);
 
-            PCRE2_SPTR substring_start = buffer + ovector[2*i];     
-            size_t substring_length = ovector[2*i+1] - ovector[2*i];
+            /* }    */
+        } else {
+            break;
+        }	
+       
+        break;
+    }
 
-
-            uint32_t matchLen = ovector[2*i+1] - matchStart;
-            uint32_t matchEnd = ovector[2*i+1];
-            /* log("buffer (len=%d): %s\n", nChars, buffer); */
-            write_log("match start: %d, matchLen: %d\n", matchStart, matchLen);
-            /* log("match start: %d (%c), matchLen: %d\n", matchStart, buffer[matchStart], matchLen); */
-            /* log("match: %2d: %.*s\n", i, (int)matchLen, (char *)buffer+matchStart); */
-            /* log("match: %2d: match start: %d, match len: %d,  %.*s\n", matchStart, matchLen,  i, (int)substring_length, (char *)substring_start); */
-            /* mvwchgat(scr->win, y, matchStart, matchEnd, NULL, 1, NULL); */
-
-        }   
-    }	
    
     if(match_data != NULL) pcre2_match_data_free(match_data);
     if(re != NULL) pcre2_code_free(re);
