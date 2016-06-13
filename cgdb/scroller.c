@@ -24,9 +24,16 @@
 #include <string.h>
 #endif /* HAVE_STRING_H */
 
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
+/* #include <regex.h> */
+/* #include <sys/types.h> */
+
 /* Local Includes */
 #include "cgdb.h"
 #include "scroller.h"
+#include "tokenizer.h"
+#include "logger.h"
 
 /* --------------- */
 /* Local Functions */
@@ -362,37 +369,112 @@ int consume_num(int* lineIdx, char* buffer, int nChars)
 //       like if we have some command we just ran and want to highlight it
 void highlight_gdb(char* buffer, int nChars, struct scroller *scr, int y)
 {
+    if(nChars == 0){
+        return;
+    }
+    
+    buffer = "imnotapath f/f.c imalsonotapath f/f.c:500";
+    nChars = strlen(buffer); 
+
+    write_log("buffer (len=%d) %.*s", nChars, (int)nChars, buffer);
+
+	int errNum,errOffset;
+    /* const char* pathRegex ="([^\s]+)/([^/\s]+)"; */
+    const char* pathRegex ="([^ /]*/[^ /]+:?[\d]*)";
+    /* const char* pathRegex ="([^\s]+)/([^/\s]+)"; */
+    /* const char* pathRegex ="[^\n\s]+\/[^\/\s\n]+"; */
+    /* const char* pathRegex ="[^\n\s\r\t]+/"; */
+    /* const char* pathRegex = "(/)?([^/\s]+(/)?)+"; */
+    /* const char* pathRegex ="#"; */
+    init_pair(1, COLOR_RED, COLOR_BLACK);
+
+    int rc;
+    int result;
+    pcre2_code *re = pcre2_compile(
+      pathRegex,  
+      PCRE2_ZERO_TERMINATED, 
+      0,                    
+      &errNum,          
+      &errOffset,      
+      NULL);          
+
+    int startOffset = 0;
+    uint32_t options = 0;
+
+    if (re == NULL) {
+        return;
+    }
+    
+    pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
+
+	rc = pcre2_match(
+		re,                   /* the compiled pattern */
+		buffer,              /* the subject string */
+		nChars,       /* the length of the subject */
+		16,         /* starting offset in the subject */
+		0,              /* options */
+		match_data,           /* block for storing the result */
+		NULL);                /* use default match context */
+ 
+    if (rc > 0){
+        write_log("got %d matches", rc);
+        for(int i = 0; i < rc; i++){
+            PCRE2_SIZE* ovector = pcre2_get_ovector_pointer(match_data);
+            /* PCRE2_SPTR substring_start = subject + ovector[2*i]; */
+            /* uint32_t substring_length = ovector[2*i+1] - ovector[2*i]; */
+            uint32_t matchStart = ovector[2*i];
+
+            PCRE2_SPTR substring_start = buffer + ovector[2*i];     
+            size_t substring_length = ovector[2*i+1] - ovector[2*i];
+
+
+            uint32_t matchLen = ovector[2*i+1] - matchStart;
+            uint32_t matchEnd = ovector[2*i+1];
+            /* log("buffer (len=%d): %s\n", nChars, buffer); */
+            write_log("match start: %d, matchLen: %d\n", matchStart, matchLen);
+            /* log("match start: %d (%c), matchLen: %d\n", matchStart, buffer[matchStart], matchLen); */
+            /* log("match: %2d: %.*s\n", i, (int)matchLen, (char *)buffer+matchStart); */
+            /* log("match: %2d: match start: %d, match len: %d,  %.*s\n", matchStart, matchLen,  i, (int)substring_length, (char *)substring_start); */
+            /* mvwchgat(scr->win, y, matchStart, matchEnd, NULL, 1, NULL); */
+
+        }   
+    }	
+   
+    if(match_data != NULL) pcre2_match_data_free(match_data);
+    if(re != NULL) pcre2_code_free(re);
+
+
     /* init_pair(1, COLOR_RED, COLOR_BLACK); */
-    char cur,prev;
-    for(int lineIdx = 0; lineIdx < nChars; lineIdx++) {
-        cur = buffer[lineIdx];
+    /* char cur,prev;                                                         */
+    /* for(int lineIdx = 0; lineIdx < nChars; lineIdx++) {                    */
+    /*     cur = buffer[lineIdx];                                             */
         
         // backtrace
         // the start of each stack frame line is #n EG: #1
-        if(cur == '#'){
-            int startIdx = lineIdx;
-            ++lineIdx;
-            int numSize = consume_num(&lineIdx, buffer, nChars);
-            if(numSize > 0){
+    /*     if(cur == '#'){                                                    */
+    /*         int startIdx = lineIdx;                                        */
+    /*         ++lineIdx;                                                     */
+    /*         int numSize = consume_num(&lineIdx, buffer, nChars);           */
+    /*         if(numSize > 0){                                               */
                 // the +1 includes the "#"
-                mvwchgat(scr->win, y, startIdx, numSize+1, NULL, 1, NULL);
-            }
-        }
+    /*             mvwchgat(scr->win, y, startIdx, numSize+1, NULL, 1, NULL); */
+    /*         }                                                              */
+    /*     }                                                                  */
 
         // hex
-        if(cur == '0'){
-            int startIdx = lineIdx;
-            int numSize = consume_hex(&lineIdx, buffer, nChars);
-            if(numSize > 0){
-                mvwchgat(scr->win, y, startIdx, numSize, NULL, 1, NULL);
-            }
-        }
+    /*     if(cur == '0'){                                                    */
+    /*         int startIdx = lineIdx;                                        */
+    /*         int numSize = consume_hex(&lineIdx, buffer, nChars);           */
+    /*         if(numSize > 0){                                               */
+    /*             mvwchgat(scr->win, y, startIdx, numSize, NULL, 1, NULL);   */
+    /*         }                                                              */
+    /*     }                                                                  */
 
         /* if(cur == '*' || cur == '/' || cur == '+' || cur == '-'){ */
         /*     mvwchgat(scr->win, y, lineIdx, 1, NULL, 1, NULL);     */
         /* }                                                         */
         
-    }
+    /* }                                                                      */
     
 }
 
@@ -438,6 +520,7 @@ void scr_refresh(struct scroller *scr, int focus)
 
         mvwprintw(scr->win, height - nlines, 0, "%s", buffer);
 
+        /* highlight_gdb(buffer, length < width ? length : width, scr, height - nlines); */
         highlight_gdb(buffer, width, scr, height - nlines);
         
 
